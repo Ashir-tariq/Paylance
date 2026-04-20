@@ -1,14 +1,16 @@
 // sw.js — Paylance Service Worker
 // PWA ke liye — offline support + caching
 
-const CACHE_NAME = 'paylance-v1';
+
+// ✅ Naya
+const CACHE_NAME = 'paylance-v2';
 
 // Yeh files cache ho jaengi — app offline bhi khulega
+// ✅ Naya — script.js hata do
 const STATIC_FILES = [
     '/',
     '/index.html',
-    '/static/style.css',
-    '/static/script.js',
+    '/static/style.css',   // CSS cache theek hai
     '/manifest.json',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
 ];

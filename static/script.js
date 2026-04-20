@@ -27,8 +27,13 @@ let expenseCategories = {
 // -----------------------------------------------
 // HELPER — API call (JWT auto-attach)
 // -----------------------------------------------
+// ✅ Naya — credentials: 'include' add karo
 async function apiCall(method, endpoint, body = null) {
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'  // ← YEH ADD KARO — cookie automatically jaayegi
+    };
     if (body) options.body = JSON.stringify(body);
     const res  = await fetch(`${API}${endpoint}`, options);
     const data = await res.json();
@@ -38,13 +43,35 @@ async function apiCall(method, endpoint, body = null) {
 // -----------------------------------------------
 // INIT
 // -----------------------------------------------
-window.addEventListener('load', function () {
+// ✅ Yeh karo
+window.addEventListener('load', async function () {
+    updateGreeting();
+    updateBiometricButton();
+
+    try {
+        const res = await fetch('/api/user/me', {
+            credentials: 'include'
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.user) {
+                // Session valid — seedha dashboard
+                loadUserIntoApp(data.user);
+                document.getElementById('splashScreen').style.display = 'none';
+                showDashboard();
+                return; // ← Yeh zaroori hai
+            }
+        }
+    } catch (err) {
+        console.log('Session check failed:', err);
+    }
+
+    // Token nahi ya invalid — login screen
     setTimeout(() => {
         document.getElementById('splashScreen').style.display = 'none';
         document.getElementById('loginPage').style.display = 'flex';
     }, 2500);
-    updateGreeting();
-    updateBiometricButton();
 });
 
 // -----------------------------------------------
@@ -261,10 +288,21 @@ function updateProfileStats() {
 // -----------------------------------------------
 // LOGOUT
 // -----------------------------------------------
-function logout() {
+// ✅ Naya — server ko logout call karo pehle
+async function logout() {
     if (confirm('Are you sure you want to logout?')) {
+        // Server se cookie clear karwao
+        try {
+            await fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch { /* silent fail */ }
+
+        // Local state clear karo
         currentUser = null; balance = 0; transactions = [];
         financialGoals = []; recurringPayments = []; cashbackPoints = 0;
+
         ['dashboard','cardsPage','profilePage','analyticsPage'].forEach(id => {
             document.getElementById(id).style.display = 'none';
         });
