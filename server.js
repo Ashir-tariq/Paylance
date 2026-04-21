@@ -39,8 +39,31 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-app.use(express.static(path.join(__dirname)));
-app.use('/static', express.static(path.join(__dirname, 'static')));
+// ✅ Cache fix — browser ko har baar fresh files milein
+app.use(express.static(path.join(__dirname), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            // HTML files kabhi cache nahi hongi
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        } else if (filePath.match(/\.(js|css)$/)) {
+            // JS/CSS — 1 minute cache, phir revalidate
+            res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+        }
+    }
+}));
+app.use('/static', express.static(path.join(__dirname, 'static'), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        if (filePath.match(/\.(js|css)$/)) {
+            res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+        }
+    }
+}));
 
 const PORT = process.env.PORT || 5000;
 

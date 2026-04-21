@@ -195,82 +195,94 @@ const addTransaction = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const user = await User.findOne({ mobile });
-    if (!user) {
+    // ✅ Sirf checks ke liye read
+    const userCheck = await User.findOne({ mobile });
+    if (!userCheck) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Balance check (sent/bill ke liye)
-    if ((type === "sent" || type === "bill") && amount > user.balance) {
+    // Balance check
+    if ((type === "sent" || type === "bill") && amount > userCheck.balance) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
     // Transaction limit check
     const limit =
-      user.transactionLimit ||
-      (user.accountType === "verified" ? 500000 : 25000);
+      userCheck.transactionLimit ||
+      (userCheck.accountType === "verified" ? 500000 : 25000);
     if ((type === "sent" || type === "bill") && amount > limit) {
-      return res
-        .status(400)
-        .json({
-          message: `Transaction limit exceeded. Your limit is Rs ${limit.toLocaleString()}`,
-        });
-    }
-
-    // Suspicious activity: large transaction flag
-    if ((type === "sent" || type === "bill") && amount >= limit * 0.8) {
-      user.suspiciousActivity.push({
-        type: "large_transaction",
-        description: `Large ${type} of Rs ${amount} (${Math.round((amount / limit) * 100)}% of limit)`,
-        amount,
+      return res.status(400).json({
+        message: `Transaction limit exceeded. Your limit is Rs ${limit.toLocaleString()}`,
       });
     }
 
-    // Balance update karo
-    if (type === "received") {
-      user.balance += amount;
-    } else {
-      user.balance -= amount;
-      // Cashback points add karo (1 point per Rs 100)
-      user.cashbackPoints += Math.floor(amount / 100);
+    // Suspicious activity entry (agar large txn ho)
+    const suspiciousEntry =
+      (type === "sent" || type === "bill") && amount >= limit * 0.8
+        ? {
+            type: "large_transaction",
+            description: `Large ${type} of Rs ${amount} (${Math.round((amount / limit) * 100)}% of limit)`,
+            amount,
+            date: new Date(),
+          }
+        : null;
+
+    const newTxn = { type, title, recipient, amount, date: new Date() };
+    const balanceDelta = type === "received" ? amount : -amount;
+    const cashbackDelta = type !== "received" ? Math.floor(amount / 100) : 0;
+
+    // ✅ Atomic update — version conflict nahi hoga
+    const pushOp = {
+      transactions: { $each: [newTxn], $position: 0, $slice: 50 },
+    };
+    if (suspiciousEntry) pushOp.suspiciousActivity = suspiciousEntry;
+
+    const updatedUser = await User.findOneAndUpdate(
+      { mobile },
+      {
+        $inc: { balance: balanceDelta, cashbackPoints: cashbackDelta },
+        $push: pushOp,
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Transaction add karo (last mein, limit 50)
-    user.transactions.unshift({ type, title, recipient, amount });
-    if (user.transactions.length > 50) {
-      user.transactions = user.transactions.slice(0, 50);
-    }
-
-    await user.save();
-
-    // Agar 'sent' hai aur recipient valid mobile hai — unka balance bhi update karo
+    // ✅ Recipient ka balance bhi atomic update
     if (
       type === "sent" &&
       recipient &&
       recipient.length === 11 &&
       recipient.startsWith("03")
     ) {
-      const recipientUser = await User.findOne({ mobile: recipient });
-      if (recipientUser) {
-        recipientUser.balance += amount;
-        recipientUser.transactions.unshift({
-          type: "received",
-          title: `Received from ${user.name || mobile}`,
-          recipient: mobile,
-          amount,
-        });
-        if (recipientUser.transactions.length > 50) {
-          recipientUser.transactions = recipientUser.transactions.slice(0, 50);
+      await User.findOneAndUpdate(
+        { mobile: recipient },
+        {
+          $inc: { balance: amount },
+          $push: {
+            transactions: {
+              $each: [{
+                type: "received",
+                title: `Received from ${userCheck.name || mobile}`,
+                recipient: mobile,
+                amount,
+                date: new Date(),
+              }],
+              $position: 0,
+              $slice: 50,
+            },
+          },
         }
-        await recipientUser.save();
-      }
+      );
     }
 
     res.json({
       message: "Transaction successful",
-      balance: user.balance,
-      cashbackPoints: user.cashbackPoints,
-      transaction: user.transactions[0],
+      balance: updatedUser.balance,
+      cashbackPoints: updatedUser.cashbackPoints,
+      transaction: updatedUser.transactions[0],
     });
   } catch (error) {
     console.error("Transaction error:", error.message);

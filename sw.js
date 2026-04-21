@@ -1,16 +1,10 @@
 // sw.js — Paylance Service Worker
 // PWA ke liye — offline support + caching
 
+const CACHE_NAME = 'paylance-v3'; // ✅ Version badlo har deploy pe
 
-// ✅ Naya
-const CACHE_NAME = 'paylance-v2';
-
-// Yeh files cache ho jaengi — app offline bhi khulega
-// ✅ Naya — script.js hata do
+// Sirf yeh files cache hongi
 const STATIC_FILES = [
-    '/',
-    '/index.html',
-    '/static/style.css',   // CSS cache theek hai
     '/manifest.json',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
 ];
@@ -25,7 +19,7 @@ self.addEventListener('install', event => {
             });
         })
     );
-    self.skipWaiting();
+    self.skipWaiting(); // ✅ Turant activate ho
 });
 
 // Activate — purana cache saaf karo
@@ -34,43 +28,42 @@ self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys =>
             Promise.all(
-                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+                keys.filter(k => k !== CACHE_NAME).map(k => {
+                    console.log('[SW] Deleting old cache:', k);
+                    return caches.delete(k);
+                })
             )
         )
     );
-    self.clients.claim();
+    self.clients.claim(); // ✅ Sab tabs ko turant update karo
 });
 
-// Fetch — network first, cache fallback
+// Fetch — NETWORK FIRST (fresh data hamesha milega)
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
 
-    // API calls cache mat karo — hamesha network se lo
+    // API calls — sirf network
     if (url.pathname.startsWith('/api/')) {
-        return; // Normal network request
+        return;
     }
 
-    // Static files ke liye: cache first, phir network
-    event.respondWith(
-        caches.match(request).then(cached => {
-            if (cached) return cached;
+    // HTML files — kabhi cache mat karo
+    if (request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname === '/') {
+        event.respondWith(
+            fetch(request).catch(() => caches.match('/index.html'))
+        );
+        return;
+    }
 
-            return fetch(request).then(response => {
-                // Cache mein save karo for next time
-                if (response && response.status === 200 && request.method === 'GET') {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(request, clone);
-                    });
-                }
-                return response;
-            }).catch(() => {
-                // Offline hai aur cache mein bhi nahi — index.html bhejo
-                if (request.destination === 'document') {
-                    return caches.match('/index.html');
-                }
-            });
-        })
+    // JS/CSS/Images — Network first, cache fallback
+    event.respondWith(
+        fetch(request).then(response => {
+            if (response && response.status === 200 && request.method === 'GET') {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+            }
+            return response;
+        }).catch(() => caches.match(request)) // Offline fallback
     );
 });
