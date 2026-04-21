@@ -739,20 +739,98 @@ async function doTransaction(type, title, recipient, amount) {
     } catch { alert('❌ Server error during transaction.'); return null; }
 }
 
+// ✅ Naya
 async function processSendMoney() {
     const recipient = document.getElementById('recipientNumber').value.trim();
     const amount    = parseFloat(document.getElementById('sendAmount').value);
     const purpose   = document.getElementById('sendPurpose').value || 'Money Transfer';
-    if (!recipient || recipient.length !== 11 || !recipient.startsWith('03')) { alert('❌ Invalid mobile number!'); return; }
+
+    if (!recipient || recipient.length !== 11 || !recipient.startsWith('03')) {
+        alert('❌ Invalid mobile number!'); return;
+    }
     if (!amount || amount <= 0) { alert('❌ Enter valid amount!'); return; }
     if (amount > balance)       { alert('❌ Insufficient balance!'); return; }
-    const data = await doTransaction('sent', purpose, recipient, amount);
+    if (recipient === currentUser.mobile) {
+        alert('❌ Apne aap ko paise nahi bhej sakte!'); return;
+    }
+
+    try {
+        const { ok, data } = await apiCall('GET', `/user/verify/${recipient}`);
+        if (!ok) {
+            alert('❌ ' + (data.message || 'User not registered on Paylance'));
+            return;
+        }
+        showConfirmSendModal({
+            receiverName:   data.name,
+            receiverMobile: data.mobile,
+            amount,
+            purpose
+        });
+    } catch {
+        alert('❌ Server error. Please try again.');
+    }
+}
+
+
+// -----------------------------------------------
+// CONFIRM SEND MODAL
+// -----------------------------------------------
+function showConfirmSendModal({ receiverName, receiverMobile, amount, purpose }) {
+    document.getElementById('modalTitle').textContent = 'Confirm Transfer';
+    document.getElementById('modalBody').innerHTML = `
+        <div style="text-align:center;padding:10px 0 20px">
+            <div style="width:70px;height:70px;border-radius:50%;
+                        background:linear-gradient(135deg,#6C5CE7,#A29BFE);
+                        display:inline-flex;align-items:center;justify-content:center;
+                        font-size:28px;color:#fff;margin-bottom:12px">
+                <i class="fas fa-user"></i>
+            </div>
+            <h3 style="color:#2d3436;margin:0">${receiverName}</h3>
+            <p style="color:#636e72;font-size:13px;margin:4px 0 0">${receiverMobile}</p>
+        </div>
+        <div style="background:#f8f9fa;border-radius:14px;padding:16px;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
+                <span style="color:#999;font-size:13px">From</span>
+                <span style="font-weight:600;font-size:13px">${currentUser.name}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
+                <span style="color:#999;font-size:13px">To</span>
+                <span style="font-weight:600;font-size:13px">${receiverName}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
+                <span style="color:#999;font-size:13px">Amount</span>
+                <span style="font-weight:700;font-size:16px;color:#6C5CE7">Rs ${formatCurrency(amount)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0">
+                <span style="color:#999;font-size:13px">Purpose</span>
+                <span style="font-weight:600;font-size:13px">${purpose}</span>
+            </div>
+        </div>
+        <button class="btn-submit" onclick="confirmAndSend('${receiverMobile}', '${receiverName}', ${amount}, '${purpose}')">
+            <i class="fas fa-paper-plane"></i> Confirm & Send
+        </button>
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+    `;
+    document.getElementById('transactionModal').style.display = 'flex';
+}
+
+// -----------------------------------------------
+// CONFIRM AND SEND
+// -----------------------------------------------
+async function confirmAndSend(receiverMobile, receiverName, amount, purpose) {
+    const data = await doTransaction('sent', purpose, receiverMobile, amount);
     if (data) {
         closeModal();
         showReceiptModal({
-            type: 'sent', title: purpose, recipient, amount,
-            balance: data.balance, date: new Date().toLocaleString(),
-            txnId: data.transaction?._id || generateTxnId()
+            type:         'sent',
+            title:        purpose,
+            recipient:    receiverMobile,
+            receiverName: receiverName,
+            senderName:   currentUser.name,
+            amount,
+            balance:      data.balance,
+            date:         new Date().toLocaleString(),
+            txnId:        data.transaction?._id || generateTxnId()
         });
     }
 }
@@ -1330,14 +1408,23 @@ function showReceiptModal(txn) {
                     <span style="color:#999;font-size:13px">Description</span>
                     <span style="font-weight:600;font-size:13px;color:#333">${txn.title}</span>
                 </div>
+
+                <!-- ✅ Recipient row — naam bhi dikhao -->
                 <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
                     <span style="color:#999;font-size:13px">${recipientLabel}</span>
-                    <span style="font-weight:600;font-size:13px;color:#333">${txn.recipient || '—'}</span>
+                    <span style="font-weight:600;font-size:13px;color:#333">
+                        ${txn.receiverName ? txn.receiverName + ' (' + txn.recipient + ')' : txn.recipient || '—'}
+                    </span>
                 </div>
+
+                <!-- ✅ From row — sender naam bhi dikhao -->
                 <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
                     <span style="color:#999;font-size:13px">From</span>
-                    <span style="font-weight:600;font-size:13px;color:#333">${currentUser.mobile}</span>
+                    <span style="font-weight:600;font-size:13px;color:#333">
+                        ${txn.senderName || currentUser.name} (${currentUser.mobile})
+                    </span>
                 </div>
+
                 <div style="display:flex;justify-content:space-between;padding:8px 0">
                     <span style="color:#999;font-size:13px">Remaining Balance</span>
                     <span style="font-weight:700;font-size:14px;color:#333">Rs ${formatCurrency(txn.balance)}</span>

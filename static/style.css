@@ -72,6 +72,12 @@ body {
     margin: 0 auto 20px;
     animation: pulse 1.5s ease-in-out infinite;
 }
+.splash-logo img {
+     width: 100%;
+    height: 100%;
+    object-fit: contain;   /* ← pura logo dikhega, crop nahi hoga */
+    border-radius: 30px;   /* agar rounded chahiye */
+}
 
 .splash-logo i {
     font-size: 50px;
@@ -218,16 +224,24 @@ body {
 }
 
 .logo-icon {
-    width: 50px;
+    width: 50px;   /* jo bhi size chahiye */
     height: 50px;
-    background: linear-gradient(135deg, var(--primary), var(--secondary));
     border-radius: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 24px;
-    animation: rotate 3s linear infinite;
+    overflow: hidden;        /* ← zaroori hai */
+    flex-shrink: 0;          /* ← shrink hone se rokta hai */
+    /* animation: rotate 3s linear infinite; */
+    
+    /* Yeh hata do ya remove karo — img par apply nahi hota */
+    /* background: linear-gradient(...) */
+    /* display: flex; align-items; justify-content; */
+    /* color, font-size — yeh sab sirf icon/text ke liye tha */
+}
+
+.logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;   /* ← pura logo dikhega, crop nahi hoga */
+    border-radius: 15px;   /* agar rounded chahiye */
 }
 
 @keyframes rotate {

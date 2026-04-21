@@ -107,12 +107,13 @@ const login = async (req, res) => {
       expiresIn: "7d",
     });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 din
-    });
+   // ✅ Naya
+    res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // ← Fix
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+   });
 
     res.json({
       message: "Login successful",
@@ -609,16 +610,32 @@ const getCurrentUser = async (req, res) => {
 // LOGOUT — cookie clear karo
 // POST /api/logout
 // -----------------------------------------------
+// ✅ Naya
 const logout = (req, res) => {
     res.clearCookie('token', {
         httpOnly: true,
-        secure: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict'
     });
     res.json({ message: 'Logged out successfully' });
 };
 
-// ✅ Naya — 2 functions add karo
+// -----------------------------------------------
+// VERIFY RECEIVER — send money se pehle check karo
+// GET /api/user/verify/:mobile
+// -----------------------------------------------
+const verifyReceiver = async (req, res) => {
+    try {
+        const user = await User.findOne({ mobile: req.params.mobile });
+        if (!user) {
+            return res.status(404).json({ message: 'User not registered on Paylance' });
+        }
+        return res.json({ name: user.name, mobile: user.mobile });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -635,6 +652,7 @@ module.exports = {
     toggleRecurring,
     redeemCashback,
     forgotPinDirectReset,
-    getCurrentUser,  // ← naya
-    logout           // ← naya
+    getCurrentUser,
+    logout,
+    verifyReceiver  // ← naya
 };

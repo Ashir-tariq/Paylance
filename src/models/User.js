@@ -42,11 +42,11 @@ const passkeySchema = new mongoose.Schema({
     registeredAt:  { type: Date, default: Date.now }
 });
 
-// Card ka structure
+/// ✅ Naya — required hatao
 const cardSchema = new mongoose.Schema({
-    cardNumber: { type: String, required: true },
-    expiry:     { type: String, required: true },
-    cvv:        { type: String, required: true },
+    cardNumber: { type: String, default: '' },
+    expiry:     { type: String, default: '' },
+    cvv:        { type: String, default: '' },
     cardType:   { type: String, enum: ['virtual', 'physical'], default: 'virtual' },
     status:     { type: String, enum: ['active', 'frozen', 'hidden'], default: 'active' },
     issuedAt:   { type: Date, default: Date.now }
@@ -60,7 +60,7 @@ const kycSchema = new mongoose.Schema({
     cnicFront:    { type: String },
     cnicBack:     { type: String },
     selfie:       { type: String },
-    status:       { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    status: { type: String, enum: ['pending', 'approved', 'rejected', 'none'], default: 'none' },
     submittedAt:  { type: Date, default: Date.now },
     reviewedAt:   { type: Date },
     rejectReason: { type: String }
