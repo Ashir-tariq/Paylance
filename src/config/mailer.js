@@ -11,11 +11,14 @@ const nodemailer = require('nodemailer');
 // Flask mein: server = smtplib.SMTP_SSL(...)
 //             server.login(sender_email, app_password)
 const transporter = nodemailer.createTransport({
-    service: 'gmail',           // Gmail use kar raha hai
-    auth: {
-        user: process.env.SENDER_EMAIL,   // .env se aata hai
-        pass: process.env.APP_PASSWORD    // .env se aata hai
-    }
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  family: 4, // 👈 yeh line add karo — IPv4 force karti hai
+  auth: {
+    user: process.env.SENDER_EMAIL,
+    pass: process.env.APP_PASSWORD,
+  }
 });
 
 module.exports = transporter;
