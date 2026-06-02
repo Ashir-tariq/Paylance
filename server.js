@@ -1,22 +1,26 @@
-// server.js - Main Entry Point
-
 require('dotenv').config();
 
-const express    = require('express');
-const cors       = require('cors');
-const path       = require('path');
-const connectDB  = require('./src/config/db');
+const express      = require('express');
+const cors         = require('cors');
+const path         = require('path');
+const connectDB    = require('./src/config/db');
+const cookieParser = require('cookie-parser');
+const dns          = require('dns');
 
-// MongoDB connect
+// DNS fix for mobile hotspot / restrictive networks
+dns.setServers(['1.1.1.1', '8.8.8.8']);
+
 connectDB();
 
 const app = express();
 
-// Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: 'https://paylance-a3hm.onrender.com',
+    credentials: true
+}));
+app.use(cookieParser());
 
-// Routes
 const authRoutes      = require('./src/routes/auth.routes');
 const userRoutes      = require('./src/routes/user.routes');
 const paymentRoutes   = require('./src/routes/payment.routes');
@@ -31,25 +35,39 @@ app.use('/api', adminRoutes);
 app.use('/api', biometricRoutes);
 app.use('/api', kycRoutes);
 
-// Serve index.html for root
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Serve admin panel — BEFORE static middleware
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Serve static files (index.html, style.css, script.js)
-app.use(express.static(path.join(__dirname)));
-app.use('/static', express.static(path.join(__dirname, 'static')));
-
-// const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => {
-//     console.log(`✅ Paylance Server: http://localhost:${PORT}`);
-//     console.log(`💳 JazzCash: Sandbox Mode`);
-// });
+// ✅ Cache fix — browser ko har baar fresh files milein
+app.use(express.static(path.join(__dirname), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            // HTML files kabhi cache nahi hongi
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        } else if (filePath.match(/\.(js|css)$/)) {
+            // JS/CSS — 1 minute cache, phir revalidate
+            res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+        }
+    }
+}));
+app.use('/static', express.static(path.join(__dirname, 'static'), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+        if (filePath.match(/\.(js|css)$/)) {
+            res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+        }
+    }
+}));
 
 const PORT = process.env.PORT || 5000;
 
